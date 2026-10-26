@@ -1,0 +1,26 @@
+Zodiac 408, staged trigram HMM, alpha=0.02, seed=2, symbol accuracy 0.8848, key accuracy 0.8519
+row  decoded            solution           errors
+  1  ilikekallingpeopl  ilikekillingpeopl        ^          
+  2  ebecauseitirsomuc  ebecauseitissomuc             ^     
+  3  hfunatiamorefunth  hfunitismorefunth      ^  ^         
+  4  adkillingwaldgime  ankillingwildgame   ^        ^   ^  
+  5  inthefarnestbecou  intheforrestbecau        ^ ^      ^ 
+  6  remanisthemootdad  semanisthemoatdan  ^           ^   ^
+  7  gertueinomalofall  gertueanamalofall        ^ ^        
+  8  takillromethanggi  tokillsomethinggi   ^    ^     ^    
+  9  vesmethemootthril  vesmethemoatthril            ^      
+ 10  lingexpenedceatis  lingexperenceitis          ^ ^  ^   
+ 11  evenbetterthinget  evenbetterthanget              ^    
+ 12  tingyournackroffw  tingyourrocksoffw          ^^  ^    
+ 13  ithogarlthebestpa  ithagirlthebestpa     ^ ^           
+ 14  rtofitiothiewhedi  rtofitiathaewheni         ^  ^    ^ 
+ 15  daeiwillbeneborni  dieiwillbereborni   ^        ^      
+ 16  nparidaceandallth  nparadicesndallth      ^ ^  ^       
+ 17  eihavekilledwillb  eihavekilledwillb                   
+ 18  ecomemysloveriwil  ecomemyslavesiwil           ^  ^    
+ 19  lnotgaveyaumyname  lnotgiveyoumyname       ^   ^       
+ 20  becauseyouwilltry  becauseyouwilltry                   
+ 21  tosloidownanatopm  tosloidownorstopm            ^^^    
+ 22  ycallectingofslav  ycollectingofslav    ^              
+ 23  erformyofterlifee  esformyafterlifee   ^     ^         
+ 24  beorietemethhpati  beorietemethhpiti                ^  

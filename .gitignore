@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Large, rebuildable data (python -m src.corpus re-downloads and rebuilds them)
+data/raw/
+data/corpus_train.txt
+data/corpus_train_spaces.txt
+
+# Experiment smoke tests and logs
+results/*_quick*
+results/logs/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
