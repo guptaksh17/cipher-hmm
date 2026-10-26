@@ -147,7 +147,7 @@ def colored_html(decoded: str, truth: str | None) -> str:
 
 def grid_html(text: str, cols: int, ref: str | None = None, upper: bool = True) -> str:
     """Text laid out as a grid; cells differing from `ref` are red and bold."""
-    cell = "padding:1px 7px;text-align:center;"
+    cell = "padding:1px 3px;text-align:center;"
     rows = []
     for r in range(0, len(text), cols):
         cells = []
@@ -161,8 +161,9 @@ def grid_html(text: str, cols: int, ref: str | None = None, upper: bool = True) 
                 color = f"color:{BAD};font-weight:700"
             cells.append(f"<td style='{cell}{color}'>{html.escape(ch)}</td>")
         rows.append("<tr>" + "".join(cells) + "</tr>")
-    return ("<table style='border-collapse:collapse;font-family:ui-monospace,Menlo,monospace;"
-            f"font-size:17px'>{''.join(rows)}</table>")
+    table = ("<table style='border-collapse:collapse;font-family:ui-monospace,Menlo,monospace;"
+             f"font-size:14px'>{''.join(rows)}</table>")
+    return f"<div style='overflow-x:auto;max-width:100%'>{table}</div>"
 
 
 def legend_html() -> str:
