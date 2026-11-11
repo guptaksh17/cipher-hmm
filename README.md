@@ -86,14 +86,30 @@ symbols onto letters so that the implied plaintext looks like English.
 
 ## Setup
 
-Python 3.10+ (developed with 3.12).
+Python 3.10+ (developed with 3.12). Create the virtualenv **outside** the project folder,
+then install the requirements:
 
 ```bash
-cd cipher-hmm
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+python3 -m venv ~/.venvs/cipher-hmm
 ```
+
+```bash
+source ~/.venvs/cipher-hmm/bin/activate
+```
+
+```bash
+cd cipher-hmm && pip install -r requirements.txt
+```
+
+Activate it again (`source ~/.venvs/cipher-hmm/bin/activate`) in every new terminal before
+running the commands below.
+
+> **macOS with iCloud Desktop & Documents:** if the project sits in an iCloud-synced folder
+> (Desktop or Documents), macOS may offload files to the cloud and leave placeholders.
+> Python then stalls for minutes while each library file downloads, so the demo and tests
+> appear to hang. Keeping the virtualenv in `~/.venvs` (not synced) avoids this. For the
+> project itself, right-click its folder in Finder and choose **Keep Downloaded**, or keep
+> it in a folder outside iCloud.
 
 Dependencies: numpy, scipy, matplotlib, pandas, tqdm, streamlit, pytest, requests, and
 hmmlearn (used **only** in one test, to cross-check the forward algorithm).
@@ -336,6 +352,33 @@ substitution cipher never does. ([plot](results/exp7_decoding.png))
 [Zodiac trigram stage](results/exp8_em_progress_zodiac.png): the log-likelihood of every
 restart, and decoded text snapshots of the best restart as it goes from gibberish
 (28%) to readable English.
+
+### 9. Key refinement after EM (the demo's default)
+
+EM gets most of the key right but leaves a few rare symbols wrong, and which ones depends
+on the random seed. `src/refine.py` polishes the key by **hill-climbing**: it repeatedly
+reassigns one symbol to another letter (or, for simple ciphers, swaps two letters) whenever
+that raises the joint log-likelihood of the decoding under a **4-gram** English model plus
+the homophone emission term. It starts from the EM key and from the keys of the top
+restarts, keeps the best by score (never by the true key), and finishes with an iterated
+local search (random kicks, re-climb, keep if better). Mean (worst) symbol accuracy on new
+ciphers with the demo's settings, before and after, from the same runs:
+
+| Scenario | Key from EM | After refinement | Time |
+|---|---:|---:|---:|
+| Simple, 300 letters, bigram (20 restarts) | 79.9% (38%) | **99.9%** (99%) | 2 s |
+| Simple, 150 letters, staged | 91.7% (82%) | **100.0%** (100%) | 5 s |
+| Simple, 300 letters, staged | 97.6% (94%) | **99.9%** (99%) | 10 s |
+| Homophonic 54 symbols, 300 letters, staged | 72.5% (55%) | **98.6%** (95%) | 16 s |
+| Homophonic 54 symbols, 408 letters, staged | 89.3% (60%) | **99.5%** (98%) | 22 s |
+| **Zodiac 408 (5 seeds)** | 65.7% (44%) | **98.0%** (98%) | 21 s |
+
+On the Zodiac every seed now reaches 98.0% (key accuracy 96.3%, 52 of 54 symbols). The
+remaining 8 errors come from two symbols; one of them sits in the author's own enciphering
+slip "paradice sndall", where the refined key reads the intended "and".
+Experiments 1–8 above were run before this step and use the EM key only (they set
+`refine=False`, so rerunning them reproduces those numbers).
+([plot](results/exp9_refinement.png))
 
 ---
 

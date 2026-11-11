@@ -28,7 +28,7 @@ def task(t: dict) -> list[dict]:
     rows = []
     for R in t["restarts"]:
         t0 = time.perf_counter()
-        cfg = DecipherConfig(alpha=ALPHA_STAGED, seed=t["index"], max_batch_bytes=MAX_BATCH_BYTES)
+        cfg = DecipherConfig(refine=False, alpha=ALPHA_STAGED, seed=t["index"], max_batch_bytes=MAX_BATCH_BYTES)
         res = staged_from_pool(inst.cipher, 54, pool, pool_time, R, cfg)
         rows.append(dict(part="B", method="staged", restarts=R, index=t["index"],
                          stage2_runtime=time.perf_counter() - t0, pool_runtime=pool_time,

@@ -119,7 +119,7 @@ def run_freq(cipher: np.ndarray, n_symbols: int, plain: np.ndarray, true_key: np
 def staged_pool(cipher: np.ndarray, n_symbols: int, n_pool: int, seed: int):
     """Stage 1 of the staged method: bigram restarts (ML), reusable across settings."""
     t0 = time.perf_counter()
-    cfg = DecipherConfig(n_restarts=n_pool, seed=seed, max_batch_bytes=MAX_BATCH_BYTES)
+    cfg = DecipherConfig(refine=False, n_restarts=n_pool, seed=seed, max_batch_bytes=MAX_BATCH_BYTES)
     pool = run_em(bigram_transitions(get_bigram()), cipher, n_symbols, cfg)
     return pool, time.perf_counter() - t0
 
@@ -150,7 +150,7 @@ def run_method(method: str, cipher: np.ndarray, n_symbols: int, plain: np.ndarra
     """
     if method == "freq":
         return run_freq(cipher, n_symbols, plain, true_key)
-    cfg = DecipherConfig(n_restarts=n_restarts, alpha=alpha, lm_power=lm_power, seed=seed,
+    cfg = DecipherConfig(refine=False, n_restarts=n_restarts, alpha=alpha, lm_power=lm_power, seed=seed,
                          max_batch_bytes=MAX_BATCH_BYTES)
     if method == "staged":
         pool, pool_time = staged_pool(cipher, n_symbols, n_pool, seed)

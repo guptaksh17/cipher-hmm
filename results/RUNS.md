@@ -14,6 +14,7 @@ same numbers (runtimes aside).
 | 6 Zodiac 408 | `python exp6_zodiac.py` | 5 seeds | 1000 → 50 | 6 min |
 | 7 Decoding | `python exp7_decoding.py` | reuses 1 and 5 | n/a | <1 min |
 | 8 EM progress | `python exp8_em_progress.py` | 1 | 1000 → 50 | 1 min |
+| 9 Key refinement | `python exp9_refinement.py --workers 6` | 8 (Zodiac: 5 seeds) | 200 → 10 (demo settings) | 4 min |
 
 Experiments 2 and 4 used a reduced budget (5 ciphers, smaller staged pool) to save
 time; `run_all.sh` runs every experiment at the full default budget.
@@ -25,3 +26,6 @@ staged Zodiac run).
 Alpha for the Zodiac (experiments 6 and 8) is read from experiment 3, part B:
 the best alpha on synthetic 408-letter, 54-symbol ciphers (0.02). It is never
 tuned on the Zodiac itself.
+
+Experiments 1–8 use the EM key only (`refine=False`); experiment 9, run on 2026-11-11, measures
+the key refinement that the library and the demo now apply by default.

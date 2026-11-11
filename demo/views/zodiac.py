@@ -7,8 +7,8 @@ import streamlit as st
 
 from helpers import (BATCH_BYTES, RESULTS, Throttle, bigram, grid_html, legend_html, transitions_for, z408,
                      zodiac_alpha)
-from src.decipher import (DecipherConfig, bigram_transitions, run_em, run_em_from,
-                          select_and_decode)
+from src.decipher import (DecipherConfig, bigram_transitions, pool_candidates, run_em,
+                          run_em_from, select_and_decode)
 from src.hmm import viterbi
 from src.lm import indices_to_text
 from src.metrics import key_accuracy, symbol_accuracy
@@ -80,21 +80,23 @@ def render() -> None:
                 throttle.draw(show, it, B[int(np.argmax(ll))])
 
         res = run_em_from(trans, z.cipher, B0, cfg, callback)
-        st.session_state["zodiac_result"] = select_and_decode(trans, z.cipher, z.n_symbols,
-                                                              cfg, res, t0)
+        with st.spinner("Refining the key with a 4-gram model…"):
+            st.session_state["zodiac_result"] = select_and_decode(
+                trans, z.cipher, z.n_symbols, cfg, res, t0, pool_candidates(pool, z.n_symbols, cfg))
     r = st.session_state.get("zodiac_result")
     if r is None:
         return
     status.empty()
     grid_ph.empty()
     c = st.columns(4)
-    c[0].metric("Symbol accuracy", f"{symbol_accuracy(r.decoded, z.plain):.1%}")
-    c[1].metric("Viterbi accuracy", f"{symbol_accuracy(r.viterbi, z.plain):.1%}")
+    final, em = symbol_accuracy(r.decoded, z.plain), symbol_accuracy(r.em_key[z.cipher], z.plain)
+    c[0].metric("Symbol accuracy", f"{final:.1%}", delta=f"{100 * (final - em):+.1f} pts from refinement")
+    c[1].metric("EM key only", f"{em:.1%}")
     c[2].metric("Key accuracy (54 symbols)", f"{key_accuracy(r.key, true_key(z), z.cipher):.1%}")
     c[3].metric("Runtime", f"{r.runtime:.1f} s")
     left, right = st.columns(2, gap="large")
     with left:
-        st.subheader("Decoded (consistent key)")
+        st.subheader("Decoded (final key)")
         st.markdown(grid_html(indices_to_text(r.decoded), N_COLS, solution),
                     unsafe_allow_html=True)
         st.caption(legend_html(), unsafe_allow_html=True)

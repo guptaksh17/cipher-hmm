@@ -8,8 +8,8 @@ import streamlit as st
 from helpers import (BATCH_BYTES, CipherState, Throttle, bigram, colored_html, emission_heatmap, get_cipher,
                      key_table, legend_html, loglik_figure, restarts_figure, set_cipher,
                      transitions_for)
-from src.decipher import (DecipherConfig, bigram_transitions, run_em, run_em_from,
-                          select_and_decode)
+from src.decipher import (DecipherConfig, bigram_transitions, pool_candidates, run_em,
+                          run_em_from, select_and_decode)
 from src.hmm import viterbi
 from src.lm import indices_to_text
 from src.metrics import key_accuracy, symbol_accuracy
@@ -54,15 +54,20 @@ def _controls(state: CipherState):
         alpha = st.select_slider("Dirichlet pseudo-count α (0 = ML)", ALPHAS,
                                  value=0.02 if state.n_symbols > 26 else 0.0)
         power = st.slider("Language-model exponent", 1.0, 3.0, 1.0, step=0.25)
+        refine = st.toggle("Refine the key after EM (4-gram hill-climbing)", value=True,
+                           help="Polishes the EM key by trying symbol reassignments that make the "
+                                "decoded text more English-like under a 4-gram model.")
     cfg = DecipherConfig(n_restarts=restarts, alpha=alpha, lm_power=power, max_iter=max_iter,
-                         seed=int(seed), max_batch_bytes=BATCH_BYTES)
+                         seed=int(seed), max_batch_bytes=BATCH_BYTES, refine=refine)
     return model, cfg, n_pool, n_keep
 
 
-def _draw(ph, state, truth, trans, it, B, history, stage):
-    path = viterbi(trans, B, state.cipher)[0]
+def _draw(ph, state, truth, trans, it, B, history, stage, final=None):
+    """Redraw the live view; `final` (a decoded letter array) replaces the Viterbi path."""
+    path = viterbi(trans, B, state.cipher)[0] if final is None else final
     decoded = indices_to_text(path)
-    acc = f" · Viterbi accuracy **{symbol_accuracy(path, state.plain):.1%}**" \
+    label = "Viterbi accuracy" if final is None else "final-key accuracy"
+    acc = f" · {label} **{symbol_accuracy(path, state.plain):.1%}**" \
         if state.plain is not None else ""
     ph["status"].markdown(f"{stage} · iteration **{it}** · best log-likelihood "
                           f"**{history[-1]:.1f}**{acc}")
@@ -104,11 +109,14 @@ def _run(state: CipherState, model: str, cfg: DecipherConfig, n_pool: int, n_kee
         B0 /= B0.sum(axis=-1, keepdims=True)
         stage[0] = f"Stage 2: trigram EM from the {n_keep} best bigram solutions"
         res = run_em_from(trans, state.cipher, B0, cfg, callback)
+        extra = pool_candidates(pool, state.n_symbols, cfg)
     else:
         res = run_em(trans, state.cipher, state.n_symbols, cfg, callback)
-    result = select_and_decode(trans, state.cipher, state.n_symbols, cfg, res, t0)
+        extra = []
+    with st.spinner("Refining the key with a 4-gram model…" if cfg.refine else "Decoding…"):
+        result = select_and_decode(trans, state.cipher, state.n_symbols, cfg, res, t0, extra)
     _draw(ph, state, truth, trans, result.n_iter, result.B, history,
-          f"Finished (best restart {result.best_restart})")
+          f"Finished (best restart {result.best_restart})", final=result.decoded)
     st.session_state["result"] = dict(result=result, model=model, power=cfg.lm_power,
                                       cipher_id=state.fingerprint(), history=history)
 
@@ -119,15 +127,19 @@ def _show_result(state: CipherState) -> None:
         return
     r = saved["result"]
     st.subheader("Result of the best restart")
+    refined = r.em_key is not None and r.key_score is not None
     cols = st.columns(5)
     if state.plain is not None:
-        cols[0].metric("Consistent-key accuracy", f"{symbol_accuracy(r.decoded, state.plain):.1%}")
-        cols[1].metric("Viterbi accuracy", f"{symbol_accuracy(r.viterbi, state.plain):.1%}")
-        cols[2].metric("Posterior accuracy", f"{symbol_accuracy(r.posterior, state.plain):.1%}")
+        final = symbol_accuracy(r.decoded, state.plain)
+        em = symbol_accuracy(r.em_key[state.cipher], state.plain) if refined else final
+        cols[0].metric("Final accuracy", f"{final:.1%}",
+                       delta=f"{100 * (final - em):+.1f} pts from refinement" if refined else None)
+        cols[1].metric("EM key only", f"{em:.1%}")
+        cols[2].metric("Viterbi accuracy", f"{symbol_accuracy(r.viterbi, state.plain):.1%}")
         cols[3].metric("Key accuracy", f"{key_accuracy(r.key, state.true_key, state.cipher):.1%}")
     cols[4].metric("Runtime", f"{r.runtime:.1f} s")
-    st.markdown("**Decoded with the consistent key** (every occurrence of a symbol decoded "
-                "the same way)")
+    st.markdown("**Decoded with the final key**" + (" (EM key refined by 4-gram hill-climbing)"
+                if refined else " (consistent key from EM)"))
     truth = indices_to_text(state.plain) if state.plain is not None else None
     st.markdown(colored_html(indices_to_text(r.decoded), truth), unsafe_allow_html=True)
     if truth is not None:

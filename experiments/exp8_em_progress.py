@@ -98,7 +98,7 @@ def main() -> None:
 
     z = load_z408()
     alpha = selected_alpha()
-    cfg = DecipherConfig(n_restarts=n_pool, seed=0, max_batch_bytes=MAX_BATCH_BYTES)
+    cfg = DecipherConfig(refine=False, n_restarts=n_pool, seed=0, max_batch_bytes=MAX_BATCH_BYTES)
     pool = run_em(bigram_transitions(get_bigram()), z.cipher, z.n_symbols, cfg)
     B0 = pool.B[np.argsort(-pool.loglik)[:n_keep]] + 0.01
     B0 /= B0.sum(axis=-1, keepdims=True)

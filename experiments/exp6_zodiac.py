@@ -28,7 +28,7 @@ def task(t: dict) -> list[dict]:
         r = run_freq(z.cipher, z.n_symbols, z.plain, tk)
         decoded = frequency_analysis(z.cipher, z.n_symbols, get_bigram().pi)[z.cipher]
         return [dict(method=m, alpha=0.0, seed=0, decoded=indices_to_text(decoded), **r)]
-    cfg = DecipherConfig(n_restarts=t["n_restarts"], alpha=t["alpha"], seed=t["seed"],
+    cfg = DecipherConfig(refine=False, n_restarts=t["n_restarts"], alpha=t["alpha"], seed=t["seed"],
                          max_batch_bytes=MAX_BATCH_BYTES)
     if m == "staged":
         res = decipher_staged(z.cipher, z.n_symbols, get_bigram(), get_trigram(), cfg,

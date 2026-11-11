@@ -29,7 +29,7 @@ def task(t: dict) -> list[dict]:
     inst = make_instance(408, 54, t["index"])
     pool, pool_time = staged_pool(inst.cipher, 54, t["n_pool"], t["index"])
     for p in t["powers"]:
-        cfg = DecipherConfig(alpha=ALPHA_STAGED, lm_power=p, seed=t["index"],
+        cfg = DecipherConfig(refine=False, alpha=ALPHA_STAGED, lm_power=p, seed=t["index"],
                              max_batch_bytes=MAX_BATCH_BYTES)
         res = staged_from_pool(inst.cipher, 54, pool, pool_time, t["n_keep"], cfg)
         rows.append(dict(part="B", method="staged", length=408, power=p, index=t["index"],

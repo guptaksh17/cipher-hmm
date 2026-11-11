@@ -23,6 +23,9 @@ FIGURES = [
     ("exp6_zodiac_grid.png", "6b. Zodiac 408 decoded vs the known solution", None),
     ("exp7_decoding.png", "7. Viterbi vs posterior vs consistent-key decoding",
      "A consistent symbol → letter key beats both position-wise decodings."),
+    ("exp9_refinement.png", "9. Key refinement after EM",
+     "Hill-climbing on a 4-gram model, starting from the keys of the top EM restarts, "
+     "fixes the few symbols EM gets wrong. Same ciphers before and after."),
     ("exp8_em_progress_simple.png", "8. EM progress, simple substitution", None),
     ("exp8_em_progress_zodiac.png", "8b. EM progress, Zodiac 408 (trigram stage)", None),
     ("exp1_length_runtime.png", "Runtime vs ciphertext length", None),
