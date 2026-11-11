@@ -356,26 +356,39 @@ restart, and decoded text snapshots of the best restart as it goes from gibberis
 ### 9. Key refinement after EM (the demo's default)
 
 EM gets most of the key right but leaves a few rare symbols wrong, and which ones depends
-on the random seed. `src/refine.py` polishes the key by **hill-climbing**: it repeatedly
-reassigns one symbol to another letter (or, for simple ciphers, swaps two letters) whenever
-that raises the joint log-likelihood of the decoding under a **4-gram** English model plus
-the homophone emission term. It starts from the EM key and from the keys of the top
-restarts, keeps the best by score (never by the true key), and finishes with an iterated
-local search (random kicks, re-climb, keep if better). Mean (worst) symbol accuracy on new
-ciphers with the demo's settings, before and after, from the same runs:
+on the random seed. `src/refine.py` therefore polishes the key against the joint
+log-likelihood of the decoding under a **4-gram** English model plus the homophone
+emission term:
+
+1. **Hill-climbing** from the EM key and from the keys of the top restarts: reassign one
+   symbol to another letter (or, for simple ciphers, swap two letters) whenever the score
+   improves.
+2. **Simulated annealing** for homophonic keys: random symbol reassignments, worse moves
+   accepted with a probability that falls as the temperature cools, from the best key and
+   from random keys. Runs continue until two of them agree on the best score (at most 12).
+   Greedy search gets trapped on short homophonic ciphers; annealing escapes.
+3. **Iterated local search**: random kicks to the best key, re-climbed, kept if better.
+
+The final key is chosen by score alone, never by the true key. Mean (worst) symbol accuracy
+on new ciphers with the demo's settings, before and after, from the same runs:
 
 | Scenario | Key from EM | After refinement | Time |
 |---|---:|---:|---:|
-| Simple, 300 letters, bigram (20 restarts) | 79.9% (38%) | **99.9%** (99%) | 2 s |
-| Simple, 150 letters, staged | 91.7% (82%) | **100.0%** (100%) | 5 s |
-| Simple, 300 letters, staged | 97.6% (94%) | **99.9%** (99%) | 10 s |
-| Homophonic 54 symbols, 300 letters, staged | 72.5% (55%) | **98.6%** (95%) | 16 s |
-| Homophonic 54 symbols, 408 letters, staged | 89.3% (60%) | **99.5%** (98%) | 22 s |
-| **Zodiac 408 (5 seeds)** | 65.7% (44%) | **98.0%** (98%) | 21 s |
+| Simple, 300 letters, bigram (20 restarts) | 79.9% (38%) | **99.9%** (99%) | 3 s |
+| Simple, 150 letters, staged | 91.7% (82%) | **100.0%** (100%) | 6 s |
+| Simple, 300 letters, staged | 97.6% (94%) | **99.9%** (99%) | 12 s |
+| Homophonic 54 symbols, 300 letters, staged | 72.5% (55%) | **98.8%** (97%) | 40 s |
+| Homophonic 54 symbols, 408 letters, staged | 89.3% (60%) | **99.5%** (98%) | 58 s |
+| **Zodiac 408 (5 seeds)** | 65.7% (44%) | **98.0%** (98%) | 50 s |
 
-On the Zodiac every seed now reaches 98.0% (key accuracy 96.3%, 52 of 54 symbols). The
+On the Zodiac every seed reaches 98.0% (key accuracy 96.3%, 52 of 54 symbols). The
 remaining 8 errors come from two symbols; one of them sits in the author's own enciphering
-slip "paradice sndall", where the refined key reads the intended "and".
+slip "paradice sndall", where the refined key reads the intended "and". A further check
+with the demo's exact Encrypt-page settings (6 held-out books × 5 passages, 300 letters,
+bigram model) gave at least 99.7% on simple ciphers and at least 97.3% on 54-symbol
+homophonic ciphers. Homophonic ciphers take about 30–60 s on a laptop because of the
+annealing; simple ciphers take a few seconds.
+
 Experiments 1–8 above were run before this step and use the EM key only (they set
 `refine=False`, so rerunning them reproduces those numbers).
 ([plot](results/exp9_refinement.png))

@@ -113,7 +113,10 @@ def _run(state: CipherState, model: str, cfg: DecipherConfig, n_pool: int, n_kee
     else:
         res = run_em(trans, state.cipher, state.n_symbols, cfg, callback)
         extra = []
-    with st.spinner("Refining the key with a 4-gram model…" if cfg.refine else "Decoding…"):
+    refining = ("Refining the key with a 4-gram model and simulated annealing (homophonic "
+                "ciphers can take a minute)…" if state.n_symbols > 26 else
+                "Refining the key with a 4-gram model…")
+    with st.spinner(refining if cfg.refine else "Decoding…"):
         result = select_and_decode(trans, state.cipher, state.n_symbols, cfg, res, t0, extra)
     _draw(ph, state, truth, trans, result.n_iter, result.B, history,
           f"Finished (best restart {result.best_restart})", final=result.decoded)
@@ -128,6 +131,11 @@ def _show_result(state: CipherState) -> None:
     r = saved["result"]
     st.subheader("Result of the best restart")
     refined = r.em_key is not None and r.key_score is not None
+    if state.plain is not None:
+        final = symbol_accuracy(r.decoded, state.plain)
+        em = symbol_accuracy(r.em_key[state.cipher], state.plain) if refined else final
+        st.success(f"**{final:.1%}** of the {len(state.cipher)} letters decoded correctly"
+                   + (f" (EM key alone: {em:.1%})." if refined else "."))
     cols = st.columns(5)
     if state.plain is not None:
         final = symbol_accuracy(r.decoded, state.plain)

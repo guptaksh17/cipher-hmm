@@ -19,6 +19,8 @@ stops when a full pass finds no improvement.
 """
 from __future__ import annotations
 
+import math
+
 from pathlib import Path
 
 import numpy as np
@@ -131,18 +133,97 @@ def key_score(cipher: np.ndarray, key: np.ndarray, n_symbols: int, one_to_one: b
     return lm + (0.0 if one_to_one else emission_score(key, counts))
 
 
-def search_keys(cipher: np.ndarray, candidates: list[np.ndarray], n_symbols: int, one_to_one: bool,
-                order: int = 4, n_kicks: int = 30, kick_size: int = 3,
-                seed: int = 0) -> tuple[np.ndarray, float]:
-    """Refine every candidate key, keep the best, then run an iterated local search.
+def _xlogx(v: float) -> float:
+    return v * math.log(v) if v > 0 else 0.0
 
-    Each kick randomly reassigns `kick_size` symbols (or swaps that many letter pairs
-    for a one-to-one key), climbs again, and is kept only if the score improves.
-    Selection uses the model score alone, never the true key.
+
+def anneal_key(cipher: np.ndarray, key: np.ndarray, n_symbols: int, iters: int,
+               rng: np.random.Generator, order: int = 4, t_start: float = 8.0,
+               t_end: float = 0.2) -> np.ndarray:
+    """Simulated annealing over many-to-one (homophonic) keys.
+
+    A move reassigns one symbol to another letter. Its score change touches only the
+    n-gram windows that contain that symbol and the emission terms of the two letters
+    involved, so each move costs a few microseconds. Worse moves are accepted with
+    probability exp(delta / temperature); the temperature falls geometrically from
+    `t_start` to `t_end`, which lets the search escape the traps that stop greedy
+    hill-climbing on short homophonic ciphers. Returns the best key visited.
+    """
+    logp = lm_tables(order)
+    n = logp.ndim
+    key = key.copy()
+    x = key[cipher].copy()
+    T = len(x)
+    counts = np.bincount(cipher, minlength=n_symbols).astype(float)
+    present = np.flatnonzero(counts > 0)
+    pos = {s: np.flatnonzero(cipher == s) for s in present}
+    wins = {s: np.unique(np.clip((pos[s][:, None] - np.arange(n)).ravel(), 0, T - n)) for s in present}
+    letter_n = np.bincount(key, weights=counts, minlength=K)
+
+    def window_sum(w: np.ndarray) -> float:
+        return float(logp[tuple(x[w + j] for j in range(n))].sum())
+
+    current = float(lm_score(x[None], logp)[0]) + float(sum(_xlogx(c) for c in counts)) \
+        - float(sum(_xlogx(v) for v in letter_n))
+    best, best_key = current, key.copy()
+    ratio = t_end / t_start
+    for i in range(iters):
+        temp = t_start * ratio ** (i / iters)
+        s = present[rng.integers(len(present))]
+        a = key[s]
+        c = int(rng.integers(K - 1))
+        c += c >= a
+        w = wins[s]
+        old = window_sum(w)
+        x[pos[s]] = c
+        cs = counts[s]
+        delta = window_sum(w) - old + (_xlogx(letter_n[a]) + _xlogx(letter_n[c])
+                                       - _xlogx(letter_n[a] - cs) - _xlogx(letter_n[c] + cs))
+        if delta >= 0 or rng.random() < math.exp(delta / temp):
+            key[s] = c
+            letter_n[a] -= cs
+            letter_n[c] += cs
+            current += delta
+            if current > best:
+                best, best_key = current, key.copy()
+        else:
+            x[pos[s]] = a
+    return best_key
+
+
+def search_keys(cipher: np.ndarray, candidates: list[np.ndarray], n_symbols: int, one_to_one: bool,
+                order: int = 4, n_kicks: int = 30, kick_size: int = 3, seed: int = 0,
+                anneal_runs: int = 0, anneal_iters: int = 200_000) -> tuple[np.ndarray, float]:
+    """Refine every candidate key, keep the best, then search further.
+
+    For homophonic keys, simulated-annealing runs start from the best refined
+    candidate and then from random keys drawn from English letter frequencies
+    (random starts escape the regions where EM keys get stuck); each result is
+    polished by hill-climbing. Runs continue until two of them agree on the best
+    score (a sign the global optimum was found), up to `anneal_runs` runs. Finally an iterated local
+    search kicks the best key: each kick randomly reassigns `kick_size` symbols (or
+    swaps that many letter pairs for a one-to-one key), climbs again, and is kept
+    only if the score improves. Selection uses the model score alone, never the true key.
     """
     rng = np.random.default_rng(seed)
     refined = [refine_key(cipher, k, n_symbols, one_to_one, order) for k in candidates]
     scores = [key_score(cipher, k, n_symbols, one_to_one, order) for k in refined]
+    if anneal_runs > 0 and not one_to_one:
+        pi = get_bigram().pi
+        start = refined[int(np.argmax(scores))]
+        annealed: list[float] = []
+        for run in range(anneal_runs):
+            if run > 0:
+                start = rng.choice(K, size=n_symbols, p=pi)
+            k = refine_key(cipher, anneal_key(cipher, start, n_symbols, anneal_iters, rng, order),
+                           n_symbols, one_to_one, order)
+            sc = key_score(cipher, k, n_symbols, one_to_one, order)
+            refined.append(k)
+            scores.append(sc)
+            annealed.append(sc)
+            top = max(annealed)
+            if sum(abs(a - top) < 0.5 for a in annealed) >= 2:
+                break
     best_i = int(np.argmax(scores))
     best, best_score = refined[best_i], scores[best_i]
     present = np.flatnonzero(np.bincount(cipher, minlength=n_symbols) > 0)

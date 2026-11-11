@@ -1,5 +1,6 @@
 """Tests for key refinement (src/refine.py) and its use in the decipher pipeline."""
 import numpy as np
+import pytest
 
 from src.ciphers import encrypt, homophonic_key, simple_key
 from src.corpus import sample_passages
@@ -73,3 +74,29 @@ def test_refinement_can_be_switched_off():
     plain, key, cipher = cipher_case(6, 200, 26)
     r = decipher(cipher, 26, get_bigram(), DecipherConfig(n_restarts=5, max_iter=50, refine=False))
     assert r.key_score is None and np.array_equal(r.key, r.em_key)
+
+
+def test_annealing_improves_a_random_homophonic_key():
+    from src.refine import anneal_key
+    plain, key, cipher = cipher_case(7, 300, 54)
+    rng = np.random.default_rng(0)
+    start = rng.integers(26, size=54)
+    annealed = anneal_key(cipher, start, 54, iters=20_000, rng=rng)
+    assert key_score(cipher, annealed, 54, False) > key_score(cipher, start, 54, False) + 100
+
+
+@pytest.mark.slow
+def test_hard_300_letter_homophonic_passages_are_solved():
+    """Passages where EM alone fails (measured: EM key 3-32%); refinement must exceed 95%."""
+    from src.corpus import TEST_BOOKS, load_test_texts
+    ids = {v: k for k, v in TEST_BOOKS.items()}
+    for title, p in [("Alice's Adventures in Wonderland", 2), ("Adventures of Huckleberry Finn", 1)]:
+        text = load_test_texts()[ids[title]]
+        rng = np.random.default_rng(p)
+        start = int(rng.integers(0, len(text) - 300))
+        plain = text_to_indices(text[start:start + 300])
+        rng = np.random.default_rng(1)
+        key = homophonic_key(54, get_bigram().pi, rng)
+        cipher = encrypt(plain, key, rng)
+        r = decipher(cipher, 54, get_bigram(), DecipherConfig(n_restarts=20, alpha=0.02, max_iter=300, seed=0))
+        assert symbol_accuracy(r.decoded, plain) > 0.95, title

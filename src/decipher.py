@@ -51,6 +51,8 @@ class DecipherConfig:
     refine_order: int = 4           # n-gram order of the language model used to refine
     refine_candidates: int = 10     # top restarts whose keys are refined
     refine_kicks: int = 30          # iterated-local-search kicks after refinement
+    anneal_runs: int = 12           # max annealing runs (homophonic only); stops when 2 agree
+    anneal_iters: int = 200_000     # moves per annealing run
 
 
 @dataclass
@@ -173,7 +175,8 @@ def select_and_decode(trans: Transitions, cipher: np.ndarray, n_symbols: int,
         candidates += list(extra_candidates or [])
         key, score = search_keys(cipher, candidates, n_symbols, one_to_one,
                                  order=config.refine_order, n_kicks=config.refine_kicks,
-                                 seed=config.seed)
+                                 seed=config.seed, anneal_runs=config.anneal_runs,
+                                 anneal_iters=config.anneal_iters)
     return DecipherResult(
         key=key, decoded=key[cipher], viterbi=viterbi(trans, B, cipher)[0],
         posterior=gamma.argmax(axis=1), B=B, loglik=float(res.loglik[best]),
