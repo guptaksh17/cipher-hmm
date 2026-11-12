@@ -11,7 +11,7 @@ from helpers import (BATCH_BYTES, CipherState, Throttle, bigram, colored_html, e
 from src.decipher import (DecipherConfig, bigram_transitions, pool_candidates, run_em,
                           run_em_from, select_and_decode)
 from src.hmm import viterbi
-from src.lm import indices_to_text
+from src.lm import indices_to_text, text_to_indices
 from src.metrics import key_accuracy, symbol_accuracy
 
 MODELS = {
@@ -32,8 +32,35 @@ def _pasted_cipher() -> CipherState | None:
         return None
     glyphs = "".join(dict.fromkeys(text))
     ids = {g: i for i, g in enumerate(glyphs)}
-    return CipherState(np.array([ids[g] for g in text]), len(glyphs), glyphs, None, None,
-                       f"pasted, {len(text)} symbols")
+    cipher = np.array([ids[g] for g in text])
+    prev = get_cipher()
+    if prev is not None and prev.plain is not None and not prev.label.startswith("pasted,") \
+            and prev.text() == text:   # the Encrypt page's cipher: its truth is known
+        st.caption("This ciphertext matches the one from **1. Encrypt**, so its plaintext is "
+                   "used to score the result.")
+        plain, label = prev.plain, f"pasted from the Encrypt page, {len(text)} symbols"
+    else:
+        plain, label = _typed_plaintext(len(cipher)), f"pasted, {len(text)} symbols"
+    true_key = None
+    if plain is not None:                 # symbol -> its most frequent true letter
+        true_key = np.array([np.bincount(plain[cipher == s], minlength=26).argmax()
+                             for s in range(len(glyphs))])
+    return CipherState(cipher, len(glyphs), glyphs, plain, true_key, label)
+
+
+def _typed_plaintext(n: int) -> np.ndarray | None:
+    """Letters of the optional plaintext box, if they match the ciphertext one to one."""
+    raw = st.text_area("Original plaintext (optional): only used to score the result, never "
+                       "shown to the model.", height=80,
+                       placeholder="paste the original English text to get an accuracy score")
+    letters = "".join(c for c in raw.lower() if "a" <= c <= "z")
+    if not letters:
+        return None
+    if len(letters) != n:
+        st.warning(f"The plaintext has {len(letters)} letters but the ciphertext has {n} "
+                   "symbols, so it can't be used for scoring. They must match one to one.")
+        return None
+    return text_to_indices(letters)
 
 
 def _controls(state: CipherState):
@@ -136,16 +163,18 @@ def _show_result(state: CipherState) -> None:
         em = symbol_accuracy(r.em_key[state.cipher], state.plain) if refined else final
         st.success(f"**{final:.1%}** of the {len(state.cipher)} letters decoded correctly"
                    + (f" (EM key alone: {em:.1%})." if refined else "."))
-    cols = st.columns(5)
+    else:
+        st.info(f"Decoded {len(state.cipher)} symbols in {r.runtime:.1f} s; the plaintext is "
+                "below. There is no accuracy score because the true plaintext is unknown: paste "
+                "the original text in the **Original plaintext** box above to score it.")
     if state.plain is not None:
-        final = symbol_accuracy(r.decoded, state.plain)
-        em = symbol_accuracy(r.em_key[state.cipher], state.plain) if refined else final
+        cols = st.columns(5)
         cols[0].metric("Final accuracy", f"{final:.1%}",
                        delta=f"{100 * (final - em):+.1f} pts from refinement" if refined else None)
         cols[1].metric("EM key only", f"{em:.1%}")
         cols[2].metric("Viterbi accuracy", f"{symbol_accuracy(r.viterbi, state.plain):.1%}")
         cols[3].metric("Key accuracy", f"{key_accuracy(r.key, state.true_key, state.cipher):.1%}")
-    cols[4].metric("Runtime", f"{r.runtime:.1f} s")
+        cols[4].metric("Runtime", f"{r.runtime:.1f} s")
     st.markdown("**Decoded with the final key**" + (" (EM key refined by 4-gram hill-climbing)"
                 if refined else " (consistent key from EM)"))
     truth = indices_to_text(state.plain) if state.plain is not None else None
